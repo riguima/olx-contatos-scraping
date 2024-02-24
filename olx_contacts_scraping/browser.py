@@ -21,49 +21,38 @@ class Browser:
             service=Service(ChromeDriverManager().install()), options=options
         )
 
-    def get_contacts_infos(self, ad_type, state, category):
+    def get_contacts_infos(self, ad_type, state, category, page):
         if ad_type == 'Profissional':
             self.driver.get(
-                f'https://www.olx.com.br/autos-e-pecas/{category}/estado-{state}?f=c&o=1'
+                f'https://www.olx.com.br/autos-e-pecas/{category}/estado-{state}?f=c&o={page}'
             )
         elif ad_type == 'Particular':
             self.driver.get(
-                f'https://www.olx.com.br/autos-e-pecas/{category}/estado-{state}?f=p&o=1'
+                f'https://www.olx.com.br/autos-e-pecas/{category}/estado-{state}?f=p&o={page}'
             )
+        try:
+            self.find_element('.olx-text--title-large', wait=5)
+            return []
+        except TimeoutException:
+            pass
         result = {
             'Nome': [],
             'Telefone': [],
         }
-        urls = self.get_all_urls()
+        urls = []
+        for ad in self.find_elements('.sc-74d68375-2 .olx-ad-card__link-wrapper'):
+            urls.append(ad.get_attribute('href'))
         for url in urls:
             self.driver.get(url)
             try:
                 self.find_element(
-                    'button[data-testid="button-wrapper"]'
+                    'button[data-testid="button-wrapper"]', wait=5
                 ).click()
                 result['Telefone'].append(self.find_element('.sc-hknOHE').text)
                 result['Nome'].append(self.find_element('.sc-iMWBiJ').text)
             except TimeoutException:
                 continue
         return result
-
-    def get_all_urls(self):
-        urls = []
-        while True:
-            for ad in self.find_elements('.olx-ad-card__link-wrapper'):
-                urls.append(ad.get_attribute('href'))
-            base_url, current_page = re.findall(
-                r'(.+?)(\d+)$', self.driver.current_url, re.DOTALL
-            )[0]
-            self.driver.get(f'{base_url}{int(current_page) + 1}')
-            if (
-                base_url not in self.driver.current_url
-                or self.driver.find_elements(
-                    By.CSS_SELECTOR, '.olx-text--title-large'
-                )
-            ):
-                break
-        return urls
 
     def find_element(self, selector, element=None, wait=10):
         return WebDriverWait(element or self.driver, wait).until(

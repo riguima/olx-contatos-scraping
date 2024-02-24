@@ -1,5 +1,7 @@
 import pandas as pd
-from PySide6 import QtCore, QtWidgets
+from itertools import count
+from PySide6 import QtCore, QtWidgets, QtGui
+from pathlib import Path
 
 from olx_contacts_scraping.browser import Browser
 from olx_contacts_scraping.consts import CATEGORIES, STATES
@@ -37,6 +39,14 @@ class MainWindow(QtWidgets.QWidget):
         self.category_layout.addWidget(self.category_label)
         self.category_layout.addWidget(self.category_combobox)
 
+        self.page_label = QtWidgets.QLabel('Página inicio:')
+        self.page_input = QtWidgets.QLineEdit()
+        self.page_input.setText('1')
+        self.page_input.setValidator(QtGui.QIntValidator())
+        self.page_layout = QtWidgets.QHBoxLayout()
+        self.page_layout.addWidget(self.page_label)
+        self.page_layout.addWidget(self.page_input)
+
         self.generate_csv_button = QtWidgets.QPushButton('Gerar CSV')
         self.generate_csv_button.clicked.connect(self.generate_csv)
 
@@ -44,6 +54,7 @@ class MainWindow(QtWidgets.QWidget):
         self.main_layout.addLayout(self.ad_type_layout)
         self.main_layout.addLayout(self.state_layout)
         self.main_layout.addLayout(self.category_layout)
+        self.main_layout.addLayout(self.page_layout)
         self.main_layout.addWidget(self.generate_csv_button)
 
     @QtCore.Slot()
@@ -52,10 +63,19 @@ class MainWindow(QtWidgets.QWidget):
         category = list(CATEGORIES.keys())[
             self.category_combobox.currentIndex()
         ]
-        contacts_infos = self.browser.get_contacts_infos(
-            self.ad_type_combobox.currentText(), state, category
-        )
-        dataframe = pd.DataFrame.from_dict(contacts_infos)
-        dataframe.to_csv(f'result-{category}-{state}.csv', index=False)
+        csv_path = f'result-{category}-{state}.csv'
+        for page in count(int(self.page_input.text())):
+            contacts_infos = self.browser.get_contacts_infos(
+                self.ad_type_combobox.currentText(), state, category, page
+            )
+            if not contacts_infos:
+                break
+            dataframe = pd.DataFrame.from_dict(contacts_infos)
+            if Path(csv_path).exists():
+                dataframe_csv = pd.read_csv(csv_path)
+                final_dataframe = pd.concat([dataframe_csv, dataframe])
+                final_dataframe.to_csv(csv_path, index=False)
+            else:
+                dataframe.to_csv(csv_path, index=False)
         self.message_box.setText('Finalizado!')
         self.message_box.show()
